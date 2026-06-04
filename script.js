@@ -172,6 +172,23 @@ const CURRENCIES = [
 
 const META = Object.fromEntries(CURRENCIES.map(c => [c.code, c]));
 
+// ---- Persistent storage (favorites + rate history for sparklines) ----
+const FAV_KEY = "inr_favorites";
+const HIST_KEY = "inr_rate_history";
+const HIST_MAX = 24; // keep last N points per currency
+let favorites = new Set(safeParse(localStorage.getItem(FAV_KEY), []));
+let history = safeParse(localStorage.getItem(HIST_KEY), {}); // code -> [inrPerUnit,...]
+
+function safeParse(str, fallback) {
+  try { return str ? JSON.parse(str) : fallback; } catch { return fallback; }
+}
+
+// Light haptic feedback (Android WebView supports navigator.vibrate)
+function haptic(ms = 15) {
+  if (navigator.vibrate) { try { navigator.vibrate(ms); } catch {} }
+}
+
+
 // State
 let rates = {};        // code -> INR-based rate (1 INR = rate X)
 let prevRates = {};    // previous fetch for change calc
@@ -212,21 +229,95 @@ function init() {
 
   searchInput.addEventListener("input", render);
   sortSelect.addEventListener("change", render);
-  refreshBtn.addEventListener("click", () => { spinRefresh(); fetchRates(); });
+  refreshBtn.addEventListener("click", () => { haptic(15); spinRefresh(); fetchRates(); });
   baseAmount.addEventListener("input", updateConverter);
   targetAmount.addEventListener("input", onTargetInput);
   targetCurrency.addEventListener("change", () => { updateTargetFlag(); updateConverter(); });
   swapBtn.addEventListener("click", () => {
     invert = !invert;
+    haptic(15);
     swapBtn.classList.remove("spin-swap");
     void swapBtn.offsetWidth;
     swapBtn.classList.add("spin-swap");
     updateConverter();
   });
 
+  // Toggle favorite when a card's star is tapped (event delegation)
+  grid.addEventListener("click", (e) => {
+    const star = e.target.closest(".fx-fav");
+    if (star) { toggleFav(star.dataset.code); }
+  });
+
+  setupPullToRefresh();
+
   updateTargetFlag();
   fetchRates();
   timer = setInterval(fetchRates, REFRESH_MS);
+}
+
+function toggleFav(code) {
+  if (favorites.has(code)) favorites.delete(code);
+  else favorites.add(code);
+  localStorage.setItem(FAV_KEY, JSON.stringify([...favorites]));
+  haptic(15);
+  render();
+}
+
+// ---- Pull-to-refresh (mobile) ----
+function setupPullToRefresh() {
+  const indicator = document.createElement("div");
+  indicator.className = "ptr-indicator";
+  indicator.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg>`;
+  document.body.appendChild(indicator);
+
+  const THRESH = 70;
+  let startY = 0, dist = 0, pulling = false, refreshing = false;
+
+  window.addEventListener("touchstart", (e) => {
+    if (refreshing) return;
+    if (window.scrollY <= 0 && e.touches.length === 1) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+      dist = 0;
+    }
+  }, { passive: true });
+
+  window.addEventListener("touchmove", (e) => {
+    if (!pulling || refreshing) return;
+    dist = e.touches[0].clientY - startY;
+    if (dist > 0) {
+      const pull = Math.min(dist * 0.5, 90);
+      indicator.style.transform = `translateX(-50%) translateY(${pull}px)`;
+      indicator.style.opacity = String(Math.min(pull / THRESH, 1));
+      indicator.classList.toggle("ready", pull >= THRESH);
+    }
+  }, { passive: true });
+
+  function reset() {
+    indicator.style.transform = "translateX(-50%) translateY(0)";
+    indicator.style.opacity = "0";
+    indicator.classList.remove("ready", "refreshing");
+  }
+
+  window.addEventListener("touchend", () => {
+    if (!pulling || refreshing) return;
+    pulling = false;
+    const pull = Math.min(dist * 0.5, 90);
+    if (pull >= THRESH) {
+      refreshing = true;
+      haptic(20);
+      indicator.classList.add("refreshing");
+      indicator.style.transform = "translateX(-50%) translateY(60px)";
+      indicator.style.opacity = "1";
+      spinRefresh();
+      Promise.resolve(fetchRates()).finally(() => {
+        setTimeout(() => { reset(); refreshing = false; }, 400);
+      });
+    } else {
+      reset();
+    }
+    dist = 0;
+  });
 }
 
 function showSkeletons() {
@@ -264,6 +355,7 @@ async function fetchRates() {
       ? new Date(data.time_last_update_utc)
       : new Date();
 
+    recordHistory();
     setStatus("live", "Live");
     render();
     updateConverter();
@@ -298,6 +390,10 @@ function render() {
 
   const sort = sortSelect.value;
   list.sort((a, b) => {
+    // Pinned favorites always float to the top
+    const fa = favorites.has(a.code) ? 0 : 1;
+    const fb = favorites.has(b.code) ? 0 : 1;
+    if (fa !== fb) return fa - fb;
     if (sort === "name") return a.name.localeCompare(b.name);
     if (sort === "high") return inrPer(b) - inrPer(a);
     if (sort === "low") return inrPer(a) - inrPer(b);
@@ -320,22 +416,28 @@ function buildCard(c, index) {
   // Change vs previous fetch (based on INR-per-unit)
   let changeHtml = `<span class="fx-change flat">•</span>`;
   let flashClass = "";
+  let up = true;
   if (prevRates[c.code]) {
     const prevInrPer = 1 / prevRates[c.code];
     const diff = inrPerUnit - prevInrPer;
     const pct = (diff / prevInrPer) * 100;
     if (Math.abs(pct) > 0.0001) {
-      const up = diff > 0;
+      up = diff > 0;
       changeHtml = `<span class="fx-change ${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(2)}%</span>`;
       flashClass = up ? "flash-up" : "flash-down";
     }
   }
 
+  const isFav = favorites.has(c.code);
+  const spark = buildSparkline(c.code, up);
+
   const card = document.createElement("div");
-  card.className = `fx-card ${flashClass}`;
+  card.className = `fx-card ${flashClass} ${isFav ? "pinned" : ""}`;
   card.style.animationDelay = `${Math.min(index * 30, 300)}ms`;
   card.innerHTML = `
-    ${changeHtml}
+    <button class="fx-fav ${isFav ? "active" : ""}" data-code="${c.code}" title="${isFav ? "Unpin" : "Pin to top"}" aria-label="Toggle favorite">
+      <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="m12 17.27 5.18 3.13-1.37-5.9 4.59-3.97-6.04-.52L12 4.5 9.64 10.1l-6.04.52 4.59 3.97-1.37 5.9z"/></svg>
+    </button>
     <div class="fx-top">
       <div class="fx-flag">${c.flag}</div>
       <div class="fx-meta">
@@ -343,12 +445,49 @@ function buildCard(c, index) {
         <span>${c.name}</span>
       </div>
     </div>
-    <div class="fx-rate">
-      <span class="sym">₹</span>${formatNum(inrPerUnit)}
+    <div class="fx-rate-row">
+      <div class="fx-rate"><span class="sym">₹</span>${formatNum(inrPerUnit)}</div>
+      ${changeHtml}
     </div>
     <div class="fx-sub">1 ${c.code} = ₹${formatNum(inrPerUnit)} &nbsp;·&nbsp; ₹1 = ${c.symbol}${formatNum(unitPerInr, true)}</div>
+    ${spark}
   `;
   return card;
+}
+
+// Record current INR-per-unit values into rolling history (for sparklines)
+function recordHistory() {
+  CURRENCIES.forEach(c => {
+    if (rates[c.code] == null) return;
+    const inrPer = 1 / rates[c.code];
+    if (!history[c.code]) history[c.code] = [];
+    const arr = history[c.code];
+    const last = arr[arr.length - 1];
+    if (last == null || Math.abs(last - inrPer) > 1e-12) {
+      arr.push(inrPer);
+      if (arr.length > HIST_MAX) arr.shift();
+    }
+  });
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(history)); } catch {}
+}
+
+// Build a tiny inline SVG sparkline from stored history
+function buildSparkline(code, up) {
+  const data = history[code] || [];
+  if (data.length < 2) return "";
+  const w = 100, h = 26;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = (max - min) || 1;
+  const step = w / (data.length - 1);
+  const pts = data.map((v, i) => {
+    const x = i * step;
+    const y = h - ((v - min) / range) * (h - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const color = up ? "var(--up)" : "var(--down)";
+  return `<svg class="fx-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
 }
 
 // ---- Converter ----
