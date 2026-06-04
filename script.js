@@ -245,7 +245,9 @@ function init() {
   // Toggle favorite when a card's star is tapped (event delegation)
   grid.addEventListener("click", (e) => {
     const star = e.target.closest(".fx-fav");
-    if (star) { toggleFav(star.dataset.code); }
+    if (star) { toggleFav(star.dataset.code); return; }
+    const card = e.target.closest(".fx-card");
+    if (card && card.dataset.code) openDetail(card.dataset.code);
   });
 
   setupPullToRefresh();
@@ -433,6 +435,7 @@ function buildCard(c, index) {
 
   const card = document.createElement("div");
   card.className = `fx-card ${flashClass} ${isFav ? "pinned" : ""}`;
+  card.dataset.code = c.code;
   card.style.animationDelay = `${Math.min(index * 30, 300)}ms`;
   card.innerHTML = `
     <button class="fx-fav ${isFav ? "active" : ""}" data-code="${c.code}" title="${isFav ? "Unpin" : "Pin to top"}" aria-label="Toggle favorite">
@@ -559,6 +562,178 @@ function round(n) {
 }
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+// ---- Detail chart modal ----
+const RANGES = [
+  { label: "7D", days: 7 },
+  { label: "1M", days: 30 },
+  { label: "3M", days: 90 },
+];
+let detailModal = null;
+let detailCode = null;
+let detailDays = 30;
+
+function ensureModal() {
+  if (detailModal) return detailModal;
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" aria-label="Close">&times;</button>
+      <div class="md-head">
+        <span class="md-flag">🏳️</span>
+        <div class="md-head-text">
+          <h3 class="md-code">—</h3>
+          <span class="md-name">—</span>
+        </div>
+      </div>
+      <div class="md-rate">—</div>
+      <div class="md-ranges">
+        ${RANGES.map(r => `<button class="md-range" data-days="${r.days}">${r.label}</button>`).join("")}
+      </div>
+      <div class="md-chart"></div>
+      <div class="md-stats"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay || e.target.closest(".modal-close")) { closeDetail(); return; }
+    const rb = e.target.closest(".md-range");
+    if (rb) {
+      detailDays = parseInt(rb.dataset.days, 10);
+      setActiveRange();
+      loadChart(detailCode, detailDays);
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeDetail();
+  });
+
+  detailModal = overlay;
+  return overlay;
+}
+
+function setActiveRange() {
+  detailModal.querySelectorAll(".md-range").forEach(b => {
+    b.classList.toggle("active", parseInt(b.dataset.days, 10) === detailDays);
+  });
+}
+
+function openDetail(code) {
+  detailCode = code;
+  const modal = ensureModal();
+  const c = META[code];
+  modal.querySelector(".md-flag").textContent = c.flag;
+  modal.querySelector(".md-code").textContent = code;
+  modal.querySelector(".md-name").textContent = c.name;
+  const inrPer = rates[code] ? 1 / rates[code] : null;
+  modal.querySelector(".md-rate").innerHTML = inrPer
+    ? `₹${formatNum(inrPer)} <span>per 1 ${code}</span>`
+    : "—";
+  setActiveRange();
+  modal.classList.add("open");
+  document.body.style.overflow = "hidden";
+  haptic(12);
+  loadChart(code, detailDays);
+}
+
+function closeDetail() {
+  if (!detailModal) return;
+  detailModal.classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+async function fetchHistory(code, days) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - days);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const url = `https://api.frankfurter.app/${iso(start)}..${iso(end)}?from=INR&to=${code}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`hist HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.rates || Object.keys(data.rates).length === 0) throw new Error("no rates");
+  return Object.keys(data.rates).sort().map((date) => ({
+    t: new Date(date),
+    v: 1 / data.rates[date][code], // INR per 1 unit
+  }));
+}
+
+async function loadChart(code, days) {
+  const chartEl = detailModal.querySelector(".md-chart");
+  const statsEl = detailModal.querySelector(".md-stats");
+  const hasChart = !!chartEl.querySelector("svg");
+  if (!hasChart) {
+    chartEl.innerHTML = `<div class="md-loading">Loading chart…</div>`;
+    statsEl.innerHTML = "";
+  }
+  chartEl.classList.add("loading");
+  try {
+    const points = await fetchHistory(code, days);
+    if (detailCode !== code || detailDays !== days) return; // stale request
+    renderChart(points, statsEl, false);
+  } catch {
+    const arr = history[code] || [];
+    const points = arr.map((v) => ({ t: null, v }));
+    if (points.length >= 2) {
+      renderChart(points, statsEl, true);
+    } else {
+      chartEl.innerHTML = `<div class="md-empty">Historical chart isn't available for ${code} yet.<br><small>A live mini-trend builds as you keep the app open.</small></div>`;
+      statsEl.innerHTML = "";
+    }
+  } finally {
+    chartEl.classList.remove("loading");
+  }
+}
+
+function renderChart(points, statsEl, isLocal) {
+  const chartEl = detailModal.querySelector(".md-chart");
+  if (!points || points.length < 2) {
+    chartEl.innerHTML = `<div class="md-empty">Not enough data to draw a chart.</div>`;
+    return;
+  }
+  const W = 320, H = 170, padL = 4, padR = 4, padT = 12, padB = 4;
+  const vals = points.map((p) => p.v);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max - min) || (max * 0.001) || 1;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const x = (i) => padL + (i / (points.length - 1)) * innerW;
+  const y = (v) => padT + (1 - (v - min) / range) * innerH;
+  const up = vals[vals.length - 1] >= vals[0];
+  const color = up ? "var(--up)" : "var(--down)";
+  const fillTop = up ? "rgba(25,195,125,.30)" : "rgba(255,93,108,.30)";
+
+  const line = points.map((p, i) => `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+  const area = `${padL.toFixed(1)},${(padT + innerH).toFixed(1)} ${line} ${(padL + innerW).toFixed(1)},${(padT + innerH).toFixed(1)}`;
+
+  chartEl.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="md-svg">
+      <defs>
+        <linearGradient id="cgrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${fillTop}"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </linearGradient>
+      </defs>
+      <polygon points="${area}" fill="url(#cgrad)"/>
+      <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>`;
+
+  const first = vals[0], last = vals[vals.length - 1];
+  const pct = ((last - first) / first) * 100;
+  const fmtDate = (d) => d ? d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "";
+  const startLbl = points[0].t ? fmtDate(points[0].t) : "start";
+  const endLbl = points[points.length - 1].t ? fmtDate(points[points.length - 1].t) : "now";
+
+  statsEl.innerHTML = `
+    <div class="md-dates"><span>${startLbl}</span><span>${endLbl}</span></div>
+    <div class="md-stat-row">
+      <div class="md-stat"><label>Change</label><b class="${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(2)}%</b></div>
+      <div class="md-stat"><label>High</label><b>₹${formatNum(max)}</b></div>
+      <div class="md-stat"><label>Low</label><b>₹${formatNum(min)}</b></div>
+    </div>
+    ${isLocal ? `<div class="md-note">Live in-app trend (real history unavailable for this currency).</div>` : ""}`;
 }
 
 window.addEventListener("DOMContentLoaded", init);
