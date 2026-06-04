@@ -216,7 +216,13 @@ function init() {
   baseAmount.addEventListener("input", updateConverter);
   targetAmount.addEventListener("input", onTargetInput);
   targetCurrency.addEventListener("change", () => { updateTargetFlag(); updateConverter(); });
-  swapBtn.addEventListener("click", () => { invert = !invert; updateConverter(); });
+  swapBtn.addEventListener("click", () => {
+    invert = !invert;
+    swapBtn.classList.remove("spin-swap");
+    void swapBtn.offsetWidth;
+    swapBtn.classList.add("spin-swap");
+    updateConverter();
+  });
 
   updateTargetFlag();
   fetchRates();

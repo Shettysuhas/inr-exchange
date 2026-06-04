@@ -162,6 +162,8 @@ body {
   transition: transform 0.3s;
 }
 .swap-btn:hover { transform: rotate(180deg) scale(1.05); }
+.swap-btn.spin-swap { animation: swapSpin 0.4s ease; }
+@keyframes swapSpin { to { transform: rotate(180deg); } }
 
 .rate-line {
   margin-top: 16px; color: var(--muted);
@@ -290,10 +292,12 @@ body {
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 @media (max-width: 640px) {
-  .converter-row { grid-template-columns: 1fr; }
+  .converter-row { grid-template-columns: 1fr; gap: 8px; }
   .conv-input { gap: 8px; padding: 12px; }
-  .swap-btn { justify-self: center; transform: rotate(90deg); }
+  .swap-btn { justify-self: center; transform: rotate(90deg); margin: 4px 0; }
   .swap-btn:hover { transform: rotate(270deg) scale(1.05); }
+  .swap-btn.spin-swap { animation: swapSpinMobile 0.4s ease; }
+  @keyframes swapSpinMobile { from { transform: rotate(90deg); } to { transform: rotate(270deg); } }
   .brand h1 { font-size: 19px; }
 
   .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
@@ -304,10 +308,15 @@ body {
 }
 
 @media (max-width: 420px) {
-  .app-header { padding: 16px; gap: 10px; }
+  .app-header {
+    padding: calc(16px + env(safe-area-inset-top)) 16px 14px;
+    gap: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .header-actions { width: 100%; gap: 8px; }
   .brand-mark { width: 44px; height: 44px; font-size: 22px; }
   .brand p { font-size: 12px; }
-  .header-actions { gap: 8px; }
 
   .grid { grid-template-columns: 1fr; }
   .fx-rate { font-size: 23px; }
