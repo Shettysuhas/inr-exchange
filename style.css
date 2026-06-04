@@ -392,9 +392,33 @@ body {
 }
 .md-range.active { color: #fff; background: rgba(79, 124, 255, 0.22); border-color: var(--blue); }
 
-.md-chart { min-height: 170px; display: grid; place-items: center; position: relative; touch-action: pan-y; }
-.md-chart.loading { opacity: 0.45; transition: opacity 0.15s ease; }
-.md-svg { width: 100%; height: auto; display: block; }
+.md-chart { min-height: 186px; display: grid; place-items: center; position: relative; touch-action: pan-y; }
+.md-chart.loading { opacity: 0.5; transition: opacity 0.2s ease; }
+.md-svg { width: 100%; height: auto; display: block; animation: chartFade 0.35s ease both; }
+
+/* Buttery chart reveal */
+@keyframes chartFade { from { opacity: 0; } to { opacity: 1; } }
+.md-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: drawLine 0.65s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
+.md-area { opacity: 0; animation: areaFade 0.5s ease 0.18s forwards; }
+@keyframes areaFade { to { opacity: 1; } }
+
+/* Loading spinner */
+.md-spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.14);
+  border-top-color: var(--blue);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .md-line, .md-area, .md-svg { animation: none; stroke-dashoffset: 0; opacity: 1; }
+}
 
 /* Chart crosshair + scrub tooltip */
 .md-cross, .md-dot { opacity: 0; transition: opacity 0.12s ease; pointer-events: none; }
@@ -424,6 +448,7 @@ body {
 .md-empty small { font-size: 12px; opacity: 0.8; }
 
 .md-dates { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.md-stats { animation: chartFade 0.4s ease 0.1s both; }
 .md-stat-row { display: flex; gap: 10px; margin-top: 14px; }
 .md-stat {
   flex: 1; text-align: center;

@@ -683,7 +683,7 @@ function openDetail(code) {
   // Clear any chart from a previously opened currency so its data
   // doesn't linger for a frame before the new data loads.
   currentChart = null;
-  modal.querySelector(".md-chart").innerHTML = `<div class="md-loading">Loading chart…</div>`;
+  modal.querySelector(".md-chart").innerHTML = `<div class="md-loading"><span class="md-spinner"></span></div>`;
   modal.querySelector(".md-stats").innerHTML = "";
   loadChart(code, detailDays);
 }
@@ -715,7 +715,7 @@ async function loadChart(code, days) {
   const statsEl = detailModal.querySelector(".md-stats");
   const hasChart = !!chartEl.querySelector("svg");
   if (!hasChart) {
-    chartEl.innerHTML = `<div class="md-loading">Loading chart…</div>`;
+    chartEl.innerHTML = `<div class="md-loading"><span class="md-spinner"></span></div>`;
     statsEl.innerHTML = "";
   }
   chartEl.classList.add("loading");
@@ -767,8 +767,8 @@ function renderChart(points, statsEl, isLocal) {
           <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
         </linearGradient>
       </defs>
-      <polygon points="${area}" fill="url(#cgrad)"/>
-      <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <polygon class="md-area" points="${area}" fill="url(#cgrad)"/>
+      <polyline class="md-line" points="${line}" pathLength="1" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
       <line class="md-cross" x1="0" y1="${padT}" x2="0" y2="${(padT + innerH).toFixed(1)}" stroke="${color}"/>
       <circle class="md-dot" cx="0" cy="0" r="4" fill="${color}"/>
     </svg>
