@@ -680,6 +680,11 @@ function openDetail(code) {
   modal.classList.add("open");
   document.body.style.overflow = "hidden";
   haptic(12);
+  // Clear any chart from a previously opened currency so its data
+  // doesn't linger for a frame before the new data loads.
+  currentChart = null;
+  modal.querySelector(".md-chart").innerHTML = `<div class="md-loading">Loading chart…</div>`;
+  modal.querySelector(".md-stats").innerHTML = "";
   loadChart(code, detailDays);
 }
 
