@@ -21,7 +21,10 @@ body {
   background: radial-gradient(1200px 800px at 80% -10%, #16224d 0%, var(--bg) 55%) fixed;
   color: var(--text);
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* Floating background orbs */
@@ -50,7 +53,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 22px clamp(16px, 5vw, 48px);
+  padding: calc(22px + env(safe-area-inset-top)) clamp(16px, 5vw, 48px) 22px;
   flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: 14px; }
@@ -268,7 +271,8 @@ body {
 
 .app-footer {
   position: relative; z-index: 2;
-  text-align: center; padding: 24px 16px 40px;
+  text-align: center;
+  padding: 24px 16px calc(40px + env(safe-area-inset-bottom));
   color: var(--muted); font-size: 13px;
 }
 .app-footer a { color: var(--accent); text-decoration: none; }
