@@ -115,6 +115,7 @@ body {
   align-items: end;
   gap: 16px;
 }
+.conv-field { min-width: 0; }
 .conv-field label {
   display: block;
   font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
@@ -140,8 +141,9 @@ body {
 }
 .conv-input input::-webkit-outer-spin-button,
 .conv-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.conv-code { font-weight: 700; color: var(--muted); }
+.conv-code { font-weight: 700; color: var(--muted); flex-shrink: 0; }
 .conv-code-select {
+  flex-shrink: 0; max-width: 40%;
   background: transparent; border: none; outline: none;
   color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer;
 }
@@ -285,6 +287,7 @@ body {
 
 @media (max-width: 640px) {
   .converter-row { grid-template-columns: 1fr; }
+  .conv-input { gap: 8px; padding: 12px; }
   .swap-btn { justify-self: center; transform: rotate(90deg); }
   .swap-btn:hover { transform: rotate(270deg) scale(1.05); }
   .brand h1 { font-size: 19px; }
