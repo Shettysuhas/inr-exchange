@@ -288,4 +288,33 @@ body {
   .swap-btn { justify-self: center; transform: rotate(90deg); }
   .swap-btn:hover { transform: rotate(270deg) scale(1.05); }
   .brand h1 { font-size: 19px; }
+
+  .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .controls { flex-direction: column; align-items: stretch; }
+  .sort-wrap { justify-content: space-between; }
+  .sort-wrap select { flex: 1; }
+  .converter { padding: 18px; }
+}
+
+@media (max-width: 420px) {
+  .app-header { padding: 16px; gap: 10px; }
+  .brand-mark { width: 44px; height: 44px; font-size: 22px; }
+  .brand p { font-size: 12px; }
+  .header-actions { gap: 8px; }
+
+  .grid { grid-template-columns: 1fr; }
+  .fx-rate { font-size: 23px; }
+  .fx-flag { font-size: 26px; }
+  .conv-input input { font-size: 18px; }
+  .container { padding-bottom: 28px; }
+
+  /* Tame background orbs on tiny screens to avoid overflow/perf cost */
+  .orb-1 { width: 260px; height: 260px; }
+  .orb-2 { width: 220px; height: 220px; }
+  .orb-3 { width: 200px; height: 200px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-orb, .fx-card, .skeleton, .btn-refresh.spin svg { animation: none !important; }
+  * { scroll-behavior: auto !important; }
 }
