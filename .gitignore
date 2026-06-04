@@ -1,0 +1,20 @@
+# Build artifacts
+android/build/
+android/app/build/
+android/.gradle/
+.gradle/
+
+# Downloaded Gradle distribution (large, regenerable)
+.gradle-dist/
+
+# Local machine config (contains absolute SDK path)
+android/local.properties
+
+# Generated APK
+*.apk
+
+# Bundled web assets (copied from project root on build)
+android/app/src/main/assets/
+
+# OS / editor
+.DS_Store
