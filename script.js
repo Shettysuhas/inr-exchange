@@ -694,7 +694,7 @@ async function fetchHistory(code, days) {
   const start = new Date();
   start.setDate(end.getDate() - days);
   const iso = (d) => d.toISOString().slice(0, 10);
-  const url = `https://api.frankfurter.app/${iso(start)}..${iso(end)}?from=INR&to=${code}`;
+  const url = `https://api.frankfurter.dev/v1/${iso(start)}..${iso(end)}?from=INR&to=${code}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`hist HTTP ${res.status}`);
   const data = await res.json();
