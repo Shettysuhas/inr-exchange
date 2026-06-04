@@ -573,6 +573,7 @@ const RANGES = [
 let detailModal = null;
 let detailCode = null;
 let detailDays = 30;
+let currentChart = null; // { points, xs, ys, W, H } for crosshair interaction
 
 function ensureModal() {
   if (detailModal) return detailModal;
@@ -609,6 +610,50 @@ function ensureModal() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeDetail();
   });
+
+  // Crosshair / scrubbing interaction on the chart
+  const chartEl = overlay.querySelector(".md-chart");
+  const moveCross = (clientX) => {
+    if (!currentChart) return;
+    const svg = chartEl.querySelector("svg");
+    const tip = chartEl.querySelector(".md-tip");
+    if (!svg || !tip) return;
+    const rect = chartEl.getBoundingClientRect();
+    let rel = (clientX - rect.left) / rect.width;
+    rel = Math.max(0, Math.min(1, rel));
+    const n = currentChart.points.length;
+    const idx = Math.round(rel * (n - 1));
+    const p = currentChart.points[idx];
+    const cx = currentChart.xs[idx], cy = currentChart.ys[idx];
+
+    const lineEl = svg.querySelector(".md-cross");
+    const dotEl = svg.querySelector(".md-dot");
+    lineEl.setAttribute("x1", cx); lineEl.setAttribute("x2", cx);
+    dotEl.setAttribute("cx", cx); dotEl.setAttribute("cy", cy);
+    svg.classList.add("active");
+
+    const dateStr = p.t
+      ? p.t.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })
+      : "";
+    tip.innerHTML = `<b>₹${formatNum(p.v)}</b>${dateStr ? `<span>${dateStr}</span>` : ""}`;
+    const leftPx = (cx / currentChart.W) * rect.width;
+    const half = tip.offsetWidth / 2;
+    const clamped = Math.max(half, Math.min(rect.width - half, leftPx));
+    tip.style.left = `${clamped}px`;
+    tip.classList.add("show");
+  };
+  const hideCross = () => {
+    const svg = chartEl.querySelector("svg");
+    const tip = chartEl.querySelector(".md-tip");
+    if (svg) svg.classList.remove("active");
+    if (tip) tip.classList.remove("show");
+  };
+  chartEl.addEventListener("touchstart", (e) => moveCross(e.touches[0].clientX), { passive: true });
+  chartEl.addEventListener("touchmove", (e) => moveCross(e.touches[0].clientX), { passive: true });
+  chartEl.addEventListener("touchend", hideCross);
+  chartEl.addEventListener("touchcancel", hideCross);
+  chartEl.addEventListener("mousemove", (e) => moveCross(e.clientX));
+  chartEl.addEventListener("mouseleave", hideCross);
 
   detailModal = overlay;
   return overlay;
@@ -679,6 +724,7 @@ async function loadChart(code, days) {
     if (points.length >= 2) {
       renderChart(points, statsEl, true);
     } else {
+      currentChart = null;
       chartEl.innerHTML = `<div class="md-empty">Historical chart isn't available for ${code} yet.<br><small>A live mini-trend builds as you keep the app open.</small></div>`;
       statsEl.innerHTML = "";
     }
@@ -718,7 +764,18 @@ function renderChart(points, statsEl, isLocal) {
       </defs>
       <polygon points="${area}" fill="url(#cgrad)"/>
       <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    </svg>`;
+      <line class="md-cross" x1="0" y1="${padT}" x2="0" y2="${(padT + innerH).toFixed(1)}" stroke="${color}"/>
+      <circle class="md-dot" cx="0" cy="0" r="4" fill="${color}"/>
+    </svg>
+    <div class="md-tip"></div>`;
+
+  // Store geometry for crosshair interaction
+  currentChart = {
+    points,
+    xs: points.map((p, i) => x(i)),
+    ys: points.map((p) => y(p.v)),
+    W, H,
+  };
 
   const first = vals[0], last = vals[vals.length - 1];
   const pct = ((last - first) / first) * 100;

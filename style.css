@@ -392,9 +392,32 @@ body {
 }
 .md-range.active { color: #fff; background: rgba(79, 124, 255, 0.22); border-color: var(--blue); }
 
-.md-chart { min-height: 170px; display: grid; place-items: center; }
+.md-chart { min-height: 170px; display: grid; place-items: center; position: relative; touch-action: pan-y; }
 .md-chart.loading { opacity: 0.45; transition: opacity 0.15s ease; }
 .md-svg { width: 100%; height: auto; display: block; }
+
+/* Chart crosshair + scrub tooltip */
+.md-cross, .md-dot { opacity: 0; transition: opacity 0.12s ease; pointer-events: none; }
+.md-cross { stroke-width: 1; stroke-dasharray: 3 3; opacity: 0; }
+.md-dot { stroke: var(--bg-2); stroke-width: 2; }
+.md-svg.active .md-cross { opacity: 0.7; }
+.md-svg.active .md-dot { opacity: 1; }
+.md-tip {
+  position: absolute; top: 4px; left: 0;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 10px; border-radius: 10px;
+  background: rgba(8, 12, 28, 0.92);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  font-size: 13px; white-space: nowrap;
+  opacity: 0; visibility: hidden;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.md-tip.show { opacity: 1; visibility: visible; }
+.md-tip b { font-weight: 800; }
+.md-tip span { color: var(--muted); font-size: 11px; margin-top: 1px; }
 .md-loading, .md-empty {
   color: var(--muted); font-size: 14px; text-align: center; padding: 50px 10px;
 }
